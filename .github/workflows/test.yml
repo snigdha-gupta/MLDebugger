@@ -1,0 +1,54 @@
+# This workflow will install Python dependencies, run tests and lint with a single version of Python
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
+
+name: MLDebugger Test
+
+on:
+  pull_request:
+    branches: [ "main" ]
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+#env:
+#  # Differentiate manual testing from automated testing
+#  GIT_MODE: 1
+#  # pip install to conda env
+#  PYTHONNOUSERSITE: 1
+
+jobs:
+  build:
+    runs-on: [ vdi ]
+    steps:
+    - name: Set correct Git path
+      run: echo "/usr/bin" >> $GITHUB_PATH
+    - uses: actions/checkout@v4
+      with:
+        clean: true
+        lfs: true
+
+    - name: Pull LFS files
+      run: git lfs pull
+
+    - name: Lint with flake8, pylint
+      run: |
+        # stop the build if there are Python syntax errors or undefined names
+        flake8 . --exclude=.venv --count --select=E9,F63,F7,F82 --show-source --statistics --indent-size 2
+        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+        # flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --indent-size 2
+        find src/ -type f -name "*.py"  | xargs pylint --ignore=.venv --indent-string='  ' --exit-zero --max-line-length=120
+
+    - name: Update submodules
+      run: |
+        git submodule update --init --recursive
+        # Pull LFS files inside any submodules that use LFS
+        git submodule foreach --recursive 'git lfs pull || true'
+
+    - name: Run debugger with test backend
+      run: |
+        cd ext
+        git clone https://gitenterprise.xilinx.com/XDP/MLDebugTest tests
+        python run_tests.py
