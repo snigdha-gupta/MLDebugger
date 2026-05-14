@@ -277,6 +277,12 @@ class BatchRunner:
         if pml:
           self.impls[sid].enable_pc_halt()
           self.state.pm_reload[sid] = False
+        # Breakpoint has now been observed for this stamp; clear the
+        # "already scheduled" guard so the next outer-loop layer can
+        # arm it normally. For stamps whose target_layer is *not* yet
+        # this next_layer (early-armed for a future target), the flag
+        # stays True - preventing re-arm/continue while we walk past.
+        self.state.break_on_stamp_scheduled[sid] = False
 
   # ------------------------------------------------------------------ #
   # Core execution primitives (shared by batch and interactive)
@@ -440,10 +446,9 @@ class BatchRunner:
         if not res:
           self.state.error = True
 
-    # At final iteration of multistamp design, reset scheduling state
+    # At final iteration of a multistamp layer, drain stamps that have no
+    # remaining future layer so they don't sit halted at their last breakpoint.
     if n_stamp > 1 and (target_itr is None or target_itr == layer.lcp.num_iter):
-      for sid, _ in enumerate(self.state.break_on_stamp_scheduled):
-        self.state.break_on_stamp_scheduled[sid] = False
       for sid in range(1, n_stamp):
         if not self.state.get_next_layer_for_stamp(sid, idx=1):
           self.impls[sid].continue_aie()
