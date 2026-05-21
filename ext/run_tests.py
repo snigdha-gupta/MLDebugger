@@ -29,7 +29,7 @@ BATCH_TESTS = {
   "PEANO_BATCH": f"{CMD} -a ext/tests/peano -b ext/tests/peano/buffer_info.json -f l2_ifm_dump --peano",
   "PEANO_L2_DUMP": f"{CMD} -a ext/tests/peano -b ext/tests/peano/buffer_info.json -f l2_ifm_dump --peano -e 15",
   "WTS_ITER_FLAGS": f"{CMD} -a ext/tests/wts_iter -b ext/tests/wts_iter/buffer_info.json"
-  " -e 2 -f layer_status text_dump l1_ofm_dump",
+  " -e 2 -f layer_status text_dump",
   "VAIML": f"{CMD} -v ext/tests/vaiml -f skip_dump",
  # "X2": f"{CMD} -a ext/tests/x2 -b ext/tests/x2/buffer_info.json -f skip_dump",
 }

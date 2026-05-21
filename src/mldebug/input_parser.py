@@ -36,6 +36,7 @@ class RunFlags:
   l2_ifm_dump: bool
   text_dump: bool
   skip_iter: bool
+  skip_iter2: bool
   # Test Flags
   mock_hang: bool
   dump_temps: bool
@@ -122,6 +123,7 @@ def create_run_flags(args, subgraph_path: str, fsp: str, fsp_execution_order: li
     get_flag("l2_ifm_dump"),
     get_flag("text_dump"),
     get_flag("skip_iter"),
+    get_flag("skip_iter2"),
     get_flag("mock_hang"),
     get_flag("dump_temps"),
     get_flag("multistamp"),

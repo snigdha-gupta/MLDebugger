@@ -9,6 +9,7 @@ import time
 
 from mldebug.utils import LOGGER
 
+
 class AIEUtil:
   """
   AIE Utility class
@@ -162,6 +163,7 @@ class AIEUtil:
     start_time = time.time()
     perf_cntr_1 = reg_map["PERF_CNTR_1"]
     while True:
+      time.sleep(0.1)
       values = self.read_aie_regs(perf_cntr_1)
       if all(v == count for v in values.values()):
         break
@@ -171,12 +173,41 @@ class AIEUtil:
           f"Design might be hung. Values={values}"
         )
         return False
-      time.sleep(0.1)
 
     # Step6: Reset debug control to stop at program counter event
     pc_event = self._get_eventid("PC_0_CORE")
     write(reg_map["DEBUG_CONTROL1"], pc_event << 16)
     return True
+
+  def skip_iterations_to_lock_acq(self, lock_acq_pc, count, sid):
+    """
+    Skip iterations without using counter
+    """
+    if self._is_test_mode() or count == 0:
+      return True
+
+    self.impl.set_pc_breakpoint(lock_acq_pc)
+    self.impl.continue_aie()
+    timeout = 10
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+      time.sleep(0.1)
+      if self.impl.poll_core_status():
+        break
+
+    pcs = self.impl.read_core_pc(True)
+    is_valid =  self.pcs_match_target(pcs, lock_acq_pc)
+    if not is_valid:
+      LOGGER.log(
+          f"{sid}: Invalid result in skip_iterations_to_lock_acq. "
+          f"target_pc={lock_acq_pc} pcs={pcs} "
+        )
+    #else:
+    #  LOGGER.log(
+    #      f"{sid}: Successfully skipped to lock acq pc. "
+    #      f"target_pc={lock_acq_pc} pcs={pcs} "
+    #    )
+    return is_valid
 
   def read_performance_counters(self, c, r):
     """
@@ -398,6 +429,25 @@ class AIEUtil:
     """
     return self.read_aie_regs(self.aie_iface.Core_registers["CORE_PC"])
 
+  def read_core_pc_dict(self):
+    """
+    Read the core program counter from all AIE tiles
+    """
+    return self.read_aie_regs(self.aie_iface.Core_registers["CORE_PC"])
+
+  def read_core_pc_tile(self, c, r):
+    """
+    Read the core program counter from all AIE tiles
+    """
+    return self.impl.read_register(c, r, self.aie_iface.Core_registers["CORE_PC"])
+
+  def single_step_core(self, c, r):
+    """
+    Single step an aie core
+    """
+    offset = self.aie_iface.Core_registers["DEBUG_CONTROL0"]
+    self.impl.write_register(c, r, offset, (1<<2))
+
   def disable_ecc_event(self):
     """
     Disable ECC Event for this stamp
@@ -406,3 +456,37 @@ class AIEUtil:
       return
     for c, r in self._filter_tiles(self.aie_iface.AIE_TILE_T):
       self.impl.write_register(c, r, self.aie_iface.Core_registers["ECC_SCRUB_EVENT"], 0)
+
+  def pcs_match_target(self, pcs, target_pc, allow_combo_delay=False):
+    """
+    PC matching utility
+    """
+    # AIE PC can lag the breakpoint by 1-2 cycles; combo events add more delay.
+    # 8 cycles is a safe margin for most cases
+    num_pipeline_stages = 5
+    max_pc_tolerance = 32
+
+    delay_allowed = max_pc_tolerance if allow_combo_delay else 1
+    pc_matches = all(abs(pc - target_pc) < delay_allowed for pc in pcs)
+    if not pc_matches:
+      # some tiles aren't halted
+      if not self.impl.poll_core_status():
+        return False
+      pc_dict = self.read_core_pc_dict()
+      for tile, val in pc_dict.items():
+        if target_pc == val:
+          continue
+        #print(f"Try to reconcile tile {tile} {val}")
+        col, row = tile
+        for _ in range(num_pipeline_stages):
+          self.single_step_core(col, row)
+          newpc = self.read_core_pc_tile(col, row)
+          delta = newpc - target_pc
+          if target_pc == newpc or max_pc_tolerance > delta > 0 :
+            break
+        # if core pc is slightly ahead, we should be okay
+        # but if not, execution can run into trouble later
+        if target_pc > self.read_core_pc_tile(col, row):
+          return False
+        #print("Successfully reconciled")
+    return True

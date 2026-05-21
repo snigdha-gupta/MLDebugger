@@ -96,12 +96,22 @@ class WorkDir:
     self.peano = peano
     self.aie_dir = aie_dir
     self.dump_lst = dump_lst
+    # Lock acquire instruction PC after layer execution
+    # This pc can be used for skip_iter
+    self.post_layer_lock_acq_pcs = [0] * num_stamps
 
     self._stamp_lst_map = {}
     for sid in range(num_stamps):
       self._stamp_lst_map[sid] = []
 
     self._initialize_functions(aie_dir, overlay)
+
+  def _check_for_lock_acq(self, line, sid, llvm):
+    """
+    find lock acq in base lst
+    """
+    if "acq" in line.lower():
+      self.post_layer_lock_acq_pcs[sid] = self._get_pc(line, llvm)
 
   def _demangle(self, fstring):
     """
@@ -315,6 +325,8 @@ class WorkDir:
     if not Path(lst_file).is_file():
       return False
 
+    is_base = "reloadable" not in elf_name
+
     self.aie_functions[stampid][elf_name] = []
     with open(lst_file, encoding="utf-8") as fd:
       lines = fd.read().split("\n")
@@ -339,6 +351,9 @@ class WorkDir:
         while i < count:
           line = lines[i]
           pc_val = self._get_pc(line)
+          if demangled == "_main" and is_base:
+            # Find LCP Lock Acquire (Last lock acquire in base lst)
+            self._check_for_lock_acq(lines[i], stampid, False)
           if pc_val:
             last_valid_pc = pc_val
           if "REL" in line and self._breakpoint_allowed(lines, i):
@@ -511,6 +526,8 @@ class WorkDir:
     self._stamp_lst_map[stampid].append((elf_name, self._get_lst(elf_path, elf_name)))
     lines = data.split("\n")
 
+    is_base = "reloadable" not in elf_name
+
     self.aie_functions[stampid][elf_name] = []
     flist = self.aie_functions[stampid][elf_name]
     in_func = None
@@ -545,6 +562,9 @@ class WorkDir:
         if not in_func:
           continue
         in_func.final_lock_release_pc = self._get_pc(line, llvm=True)
+      # lock acq
+      elif is_base and in_func and in_func.name == "main":
+        self._check_for_lock_acq(line, stampid, True)
 
   def find_functions_by_pc(self, pc):
     """
