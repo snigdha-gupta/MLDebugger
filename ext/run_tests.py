@@ -158,6 +158,33 @@ def run_status_test(name, command, cmdseq, device_name, generated_file, coredump
     return False
 
 
+def run_mldebuglib_tests():
+  """
+  Run mldebuglib unit tests (check_hw_context args contract).
+  """
+  print("\n" + "=" * 80)
+  print("Running MLDebugLib Tests")
+  print("=" * 80)
+
+  test_result = subprocess.run(
+    [sys.executable, "ext/tests/mldebuglib/test_mldebuglib_args.py"],
+    capture_output=True,
+    text=True,
+    check=False,
+  )
+
+  print(test_result.stdout)
+  if test_result.stderr:
+    print(test_result.stderr)
+
+  if test_result.returncode != 0:
+    print("MLDebugLib Tests: FAIL")
+    return False
+
+  print("MLDebugLib Tests: PASS")
+  return True
+
+
 def run_guidance_tests():
   """
   Run guidance unit tests
@@ -214,6 +241,8 @@ def test():
   """
   Toplevel
   """
+  mldebuglib_pass = run_mldebuglib_tests()
+
   # Run guidance tests first
   guidance_pass = run_guidance_tests()
 
@@ -242,7 +271,11 @@ def test():
       interactive_pass = False
 
   # Return 0 only if all tests pass
-  return 0 if (guidance_pass and batch_pass and interactive_pass and status_pass and cd_pass) else 1
+  all_pass = (
+    mldebuglib_pass and guidance_pass and batch_pass
+    and interactive_pass and status_pass and cd_pass
+  )
+  return 0 if all_pass else 1
 
 
 def main():

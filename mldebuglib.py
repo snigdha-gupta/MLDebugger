@@ -56,8 +56,18 @@ class MLDebug:
   def __init__(self, device=AIE_DEV_STX, overlay="4x4", ctxid=None, pid=None):
     if os.name == "nt":
       _check_reg()
+    self.aie_iface = _load_aie(device)
+    self.aie_iface.init(device == AIE_DEV_PHX)
     if ctxid is None or pid is None:
-      ctxid, pid = _check_hwc(device)  # Fixed: pass device parameter to check_hw_context
+      # Create a proper args-like object for check_hw_context
+      class HwCtxArgs:
+        def __init__(self, device, aie_iface):
+          self.device = device
+          self.aie_iface = aie_iface
+      
+      hwctx_args = HwCtxArgs(device=device, aie_iface=self.aie_iface)
+      
+      ctxid, pid = _check_hwc(hwctx_args)
     # Initialize Debug
     try:
       xrt_impl = importlib.import_module("mldebug.backend.xrt_impl")
@@ -65,7 +75,6 @@ class MLDebug:
       raise RuntimeError("Unable to import XRT Backend. Please check if python version is 3.10.") from e
     except ImportError as e:
       raise RuntimeError("Unable to import XRT Backend. Please check XRT Installation.") from e
-    self.aie_iface = _load_aie(device)
 
     # Create a proper args-like object for Overlay constructor
     class OverlayArgs:
