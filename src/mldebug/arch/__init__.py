@@ -5,4 +5,11 @@
 Top level AIE Arch Module
 """
 
-from .loader import load_aie_arch, AIE_DEV_PHX, AIE_DEV_STX, AIE_DEV_TEL, AIE_DEV_NPU3
+from .loader import (
+  load_aie_arch,
+  AIE_DEV_PHX,
+  AIE_DEV_STX,
+  AIE_DEV_TEL,
+  AIE_DEV_TEL_T10C,
+  AIE_DEV_NPU3,
+)

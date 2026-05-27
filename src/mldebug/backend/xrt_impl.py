@@ -5,7 +5,7 @@
 XRT Backend
 """
 
-from mldebug.arch import AIE_DEV_TEL
+from mldebug.arch import AIE_DEV_TEL, AIE_DEV_TEL_T10C
 from mldebug.utils import print_tile_grid
 from .xrt_backend import MlDebug
 from .backend_interface import BackendInterface
@@ -30,7 +30,7 @@ class XRTImpl(BackendInterface):
     """
     self.overlay_aie_core_tiles = aie_overlay_tiles
     use_debug_library = "debuglibrary" if debug_library else "xrt"
-    if dev_name != AIE_DEV_TEL:
+    if dev_name not in (AIE_DEV_TEL, AIE_DEV_TEL_T10C):
       self.binding = MlDebug(list(self.overlay_aie_core_tiles), ctx_id, pid, dev_name, use_debug_library)
     else:
       self.binding = MlDebug(list(self.overlay_aie_core_tiles), ctx_id, pid, dev_name)

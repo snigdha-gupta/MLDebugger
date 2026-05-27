@@ -12,7 +12,7 @@ SHIM_TILE_T = "shim_tile"
 MEM_TILE_T = "mem_tile"
 TILE_TYPES = [AIE_TILE_T, SHIM_TILE_T, MEM_TILE_T]
 
-AIE_TILE_ROW_OFFSET = 3
+AIE_TILE_ROW_OFFSET = 3  # t50 default; overridden by init() for t10c
 MEM_TILE_SZ = 0x80000
 HAS_UC_MODULE = True
 HAS_PER_CHANNEL_BD_REGS = {AIE_TILE_T: False, SHIM_TILE_T: False, MEM_TILE_T: False}
@@ -126,11 +126,21 @@ Core_registers = {
 }
 
 
-def init(_):
+def init(device):
   """
-  consistent interface with aie2p
+  Configure Telluride row layout (t50 vs t10c).
+
+  Args:
+      device: Device id from the CLI (``telluride`` or ``telluride_t10c``).
   """
-  return
+  global AIE_TILE_ROW_OFFSET
+  from mldebug.arch.loader import AIE_DEV_TEL_T10C
+  from mldebug.telluride_geometry import T10C, T50
+
+  if device == AIE_DEV_TEL_T10C:
+    AIE_TILE_ROW_OFFSET = T10C["aie_tile_row_offset"]
+  else:
+    AIE_TILE_ROW_OFFSET = T50["aie_tile_row_offset"]
 
 
 _create_bds(AIE_TILE_T, Core_registers)

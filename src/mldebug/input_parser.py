@@ -15,7 +15,8 @@ import os
 import subprocess
 import re
 
-from mldebug.arch import load_aie_arch, AIE_DEV_PHX, AIE_DEV_STX, AIE_DEV_TEL
+from mldebug.arch import load_aie_arch, AIE_DEV_PHX, AIE_DEV_STX, AIE_DEV_TEL, AIE_DEV_TEL_T10C
+from mldebug.telluride_geometry import refine_telluride_device
 from mldebug.backend.core_dump_impl import CoreDumpFallbackReader
 from mldebug.backend.factory import BackendConfig, create_backend
 from mldebug.utils import LOGGER, cleanup_and_exit, input_with_timeout, is_aarch64, is_windows
@@ -100,7 +101,10 @@ def create_run_flags(args, subgraph_path: str, fsp: str, fsp_execution_order: li
   # AIE interface for aie2p and aie2 are shared
   # We need to differentiate between them for a few items
   args.aie_iface = load_aie_arch(args.device)
-  args.aie_iface.init(args.device == AIE_DEV_PHX)
+  if args.device in (AIE_DEV_TEL, AIE_DEV_TEL_T10C):
+    args.aie_iface.init(args.device)
+  else:
+    args.aie_iface.init(args.device == AIE_DEV_PHX)
 
   # Finally Create run flags
   if isinstance(args.run_flags, RunFlags):
@@ -211,7 +215,7 @@ def set_device(args) -> None:
   """
   endmsg = "\n"
   if not args.device:
-    endmsg = " Use -d to specify a diferent device.\n"
+    endmsg = " Use -d to specify a different device.\n"
     # For core dumps, the device is baked into the file header. Detect it now
     # so the overlay (built before the backend) uses the correct aie_iface.
     if getattr(args, "core_dump", None) and not getattr(args, "no_header", False):
@@ -240,6 +244,8 @@ def set_device(args) -> None:
     except (FileNotFoundError, KeyError):
       pass
       #LOGGER.log("[INFO] Unable to detect device automatically.")
+  if args.device in (AIE_DEV_TEL, AIE_DEV_TEL_T10C):
+    refine_telluride_device(args)
   print(f"[INFO] Using AIE Device: {args.device}.", end=endmsg)
 
 
@@ -334,7 +340,7 @@ def check_hw_context(args) -> tuple[int, int]:
   use_shell = is_windows()
 
   # Build xrt-smi command, adding device argument for telluride
-  device_arg = "-d 0000:00:00.0" if device == AIE_DEV_TEL else "-d"
+  device_arg = "-d 0000:00:00.0" if device in (AIE_DEV_TEL, AIE_DEV_TEL_T10C) else "-d"
   cmd = f"xrt-smi examine -r aie-partitions {device_arg} -f JSON -o {filename} --force".split()
   ctx, pid = (0, 0)
   try:

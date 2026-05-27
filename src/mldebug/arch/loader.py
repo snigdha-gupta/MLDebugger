@@ -10,6 +10,7 @@ import importlib
 AIE_DEV_PHX = "phx"
 AIE_DEV_STX = "stx"
 AIE_DEV_TEL = "telluride"
+AIE_DEV_TEL_T10C = "telluride_t10c"
 AIE_DEV_NPU3 = "npu3"
 
 def load_aie_arch(device):
@@ -17,7 +18,7 @@ def load_aie_arch(device):
   return specific aie arch module based on name
   """
   mod = ".aie2p_defs"
-  if device == AIE_DEV_TEL:
+  if device in (AIE_DEV_TEL, AIE_DEV_TEL_T10C):
     mod = ".aie2ps_defs"
   elif device == AIE_DEV_NPU3:
     mod = ".npu3_defs"

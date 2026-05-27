@@ -8,7 +8,8 @@ Core Dump Backend - Read-only backend for analyzing core dumps
 import struct
 from pathlib import Path
 from mldebug.utils import print_tile_grid
-from mldebug.arch import AIE_DEV_PHX, AIE_DEV_STX, AIE_DEV_TEL, AIE_DEV_NPU3
+from mldebug.arch import AIE_DEV_PHX, AIE_DEV_STX, AIE_DEV_TEL, AIE_DEV_TEL_T10C, AIE_DEV_NPU3
+from mldebug.telluride_geometry import T10C, T50, device_from_geometry
 from .backend_interface import BackendInterface
 
 try:
@@ -46,11 +47,23 @@ DEVICE_CONFIGS = {
   AIE_DEV_TEL: {
     "hwGen": 5,
     "baseAddr": 0x0,
-    "core_row_start": 3,
-    "mem_row_start": 1,
-    "memtile_rows": 2,
-    "numrows": 7,
-    "numcols": 36,
+    "core_row_start": T50["core_row_start"],
+    "mem_row_start": T50["mem_row_start"],
+    "memtile_rows": T50["memtile_rows"],
+    "numrows": T50["numrows"],
+    "numcols": T50["numcols"],
+    "shim_tile_block_size": 1024 * 1024,
+    "mem_tile_block_size": 1024 * 1024,
+    "core_tile_block_size": 1024 * 1024,
+  },
+  AIE_DEV_TEL_T10C: {
+    "hwGen": 5,
+    "baseAddr": 0x0,
+    "core_row_start": T10C["core_row_start"],
+    "mem_row_start": T10C["mem_row_start"],
+    "memtile_rows": T10C["memtile_rows"],
+    "numrows": T10C["numrows"],
+    "numcols": T10C["numcols"],
     "shim_tile_block_size": 1024 * 1024,
     "mem_tile_block_size": 1024 * 1024,
     "core_tile_block_size": 1024 * 1024,
@@ -150,11 +163,12 @@ class CoreDumpFallbackReader:
     hw_gen, core_row_start, mem_row_start, mem_tile_rows, total_rows, total_cols = (
       struct.unpack("<BBBBBB", header[8:14]))
 
-    detected = None
-    for name, cfg in DEVICE_CONFIGS.items():
-      if cfg["hwGen"] == hw_gen:
-        detected = name
-        break
+    detected = device_from_geometry(total_cols, mem_tile_rows)
+    if detected is None:
+      for name, cfg in DEVICE_CONFIGS.items():
+        if cfg["hwGen"] == hw_gen:
+          detected = name
+          break
 
     print( "[INFO] Core dump header:")
     print(f"  Magic: {magic.decode('ascii', errors='ignore').rstrip(chr(0))}")
