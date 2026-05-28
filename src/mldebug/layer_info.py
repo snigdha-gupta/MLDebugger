@@ -487,11 +487,15 @@ class LayerInfo:
         if layer.pm_work_dir:
           path = os.path.join(args.aie_dir, layer.pm_work_dir)
           if layer.pm_work_dir not in self.x2_work_dirs:
-            self.x2_work_dirs[layer.pm_work_dir] = WorkDir(path, args.peano, self.overlay)
+            self.x2_work_dirs[layer.pm_work_dir] = WorkDir(
+              path, args.peano, self.overlay, device=args.device,
+            )
           self.layer_workdir_map[layer.layer_order] = self.x2_work_dirs[layer.pm_work_dir]
       self.work_dir = next(iter(self.layer_workdir_map.values()))
     else:
-      self.work_dir = WorkDir(args.aie_dir, args.peano, self.overlay, args.run_flags.dump_temps)
+      self.work_dir = WorkDir(
+        args.aie_dir, args.peano, self.overlay, args.run_flags.dump_temps, device=args.device,
+      )
 
     if not args.aie_only:
       # Set PC Value for layers

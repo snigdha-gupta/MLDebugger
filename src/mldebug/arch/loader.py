@@ -23,3 +23,10 @@ def load_aie_arch(device):
   elif device == AIE_DEV_NPU3:
     mod = ".npu3_defs"
   return importlib.import_module(mod, package="mldebug.arch")
+
+
+def objdump_arch_name(device: str) -> str:
+  """LLVM ``--arch-name`` for disassembling AIE ELFs from the given device."""
+  if device in (AIE_DEV_TEL, AIE_DEV_TEL_T10C):
+    return "aie2ps"
+  return "aie2p"

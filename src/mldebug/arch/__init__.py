@@ -7,6 +7,7 @@ Top level AIE Arch Module
 
 from .loader import (
   load_aie_arch,
+  objdump_arch_name,
   AIE_DEV_PHX,
   AIE_DEV_STX,
   AIE_DEV_TEL,

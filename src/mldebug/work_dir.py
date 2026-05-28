@@ -12,6 +12,7 @@ from importlib import resources
 from dataclasses import dataclass
 from pathlib import Path
 
+from mldebug.arch import objdump_arch_name
 from mldebug.extra.calltree import AIECallTree
 from mldebug.utils import LOGGER, is_aarch64, is_windows
 
@@ -78,7 +79,7 @@ class WorkDir:
   Abstraction for AIE Work Directory
   """
 
-  def __init__(self, aie_dir, peano, overlay, dump_lst=False):
+  def __init__(self, aie_dir, peano, overlay, dump_lst=False, device="stx"):
     """
     Initialize the AIE Work Directory abstraction. Sets up internal state and parses functions.
     Args:
@@ -86,6 +87,7 @@ class WorkDir:
         peano (bool): Whether using peano compiler.
         overlay: Overlay object with get_stampids() and get_first_relative_core_tile().
         dump_lst (bool): Whether to dump LST files.
+        device (str): AIE device id (selects llvm-objdump ``--arch-name``).
     """
     num_stamps = len(overlay.get_stampids())
 
@@ -96,6 +98,7 @@ class WorkDir:
     self.peano = peano
     self.aie_dir = aie_dir
     self.dump_lst = dump_lst
+    self.objdump_arch = objdump_arch_name(device)
     # Lock acquire instruction PC after layer execution
     # This pc can be used for skip_iter
     self.post_layer_lock_acq_pcs = [0] * num_stamps
@@ -180,15 +183,14 @@ class WorkDir:
     """
     lst_data = ""
     exe = "llvm-objdump.elf"
-    archname = "aie2p"
     if is_windows():
       exe = "llvm-objdump.exe"
     elif is_aarch64():
       exe = "llvm-objdump.aarch64"
-      archname = "aie2ps"
     with resources.as_file(resources.files("mldebug") / "bin" / exe) as objdump_path:
       lst = subprocess.check_output(
-        [str(objdump_path), "-d", "-z", "--no-show-raw-insn", f"--arch-name={archname}", "-C", elf_path]
+        [str(objdump_path), "-d", "-z", "--no-show-raw-insn",
+         f"--arch-name={self.objdump_arch}", "-C", elf_path]
       )
       lst_data = lst.decode("utf-8")
 
