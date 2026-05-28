@@ -16,7 +16,7 @@ import subprocess
 import re
 
 from mldebug.arch import load_aie_arch, AIE_DEV_PHX, AIE_DEV_STX, AIE_DEV_TEL, AIE_DEV_TEL_T10C
-from mldebug.telluride_geometry import refine_telluride_device
+from mldebug.telluride_geometry import read_aie_control, refine_telluride_device
 from mldebug.backend.core_dump_impl import CoreDumpFallbackReader
 from mldebug.backend.factory import BackendConfig, create_backend
 from mldebug.utils import LOGGER, cleanup_and_exit, input_with_timeout, is_aarch64, is_windows
@@ -205,7 +205,7 @@ def check_registry_keys(args, npu3=False) -> None:
 
 def set_device(args) -> None:
   """
-  Detects and sets the device target (phx, stx, or tel) for the current work directory.
+  Detects and sets the device target (phx, stx, telluride/t10c, ...) for this run.
 
   Args:
       args: Argument object that is updated to set the detected device.
@@ -225,25 +225,16 @@ def set_device(args) -> None:
         print(f"[INFO] Using AIE Device: {args.device} (detected from core dump header).")
         return
 
-    # if on ARM, default is telluride else STX
+    # Platform default; on aarch64 this is Telluride t50 until variant detection runs.
     args.device = AIE_DEV_TEL if is_aarch64() else AIE_DEV_STX
-    genstr = "XAIE_DEV_GEN_AIE2P"
+    ctrl_info = read_aie_control(getattr(args, "aie_dir", None))
+    genstr = ctrl_info.get("hw_gen", "XAIE_DEV_GEN_AIE2P")
+    if genstr == "XAIE_DEV_GEN_AIE2PS":
+      args.device = AIE_DEV_TEL
+    elif genstr == "XAIE_DEV_GEN_AIE2":
+      args.device = AIE_DEV_PHX
 
-    ctrl_cpp = args.aie_dir + "/ps/c_rts/aie_control.cpp"
-    try:
-      with open(ctrl_cpp, encoding="utf-8") as f:
-        data = f.read().split("\n")
-        for line in data:
-          if "#define HW_GEN" in line:
-            genstr = line.split(" ")[-1]
-            break
-        if genstr == "XAIE_DEV_GEN_AIE2PS":
-          args.device = AIE_DEV_TEL
-        if genstr == "XAIE_DEV_GEN_AIE2":
-          args.device = AIE_DEV_PHX
-    except (FileNotFoundError, KeyError):
-      pass
-      #LOGGER.log("[INFO] Unable to detect device automatically.")
+  # VAIML, live HW, and standalone: distinguish t50 vs t10c on Telluride hosts.
   if args.device in (AIE_DEV_TEL, AIE_DEV_TEL_T10C):
     refine_telluride_device(args)
   print(f"[INFO] Using AIE Device: {args.device}.", end=endmsg)
