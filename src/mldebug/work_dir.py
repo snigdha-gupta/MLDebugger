@@ -245,6 +245,11 @@ class WorkDir:
       return int(token)
     return 0
 
+  @staticmethod
+  def _is_llvm_insn_line(line):
+    """True for llvm-objdump instruction rows (skip headers and function labels)."""
+    return bool(re.match(r"\s+[0-9a-f]+:", line))
+
   def _find_next_pc(self, lines, from_line):
     """
     Scan lines, starting after 'from_line', until a line with a PC value is found.
@@ -579,17 +584,18 @@ class WorkDir:
         function_name = self.parse_function_sig_llvm(m_fc.group(2))
         start_pc = int(m_fc.group(1), base=16)
         in_func = AIEFunction(function_name, start_pc, 0, 0, False)
-      # end pc
-      elif "ret" in line:
+      # end pc — match insn lines only; "ret" in path text (e.g. pretrained) is not an insn
+      elif self._is_llvm_insn_line(line) and re.search(r"\bret\b", line):
         # functions with multiple returns
         if not in_func:
-          flist[-1].end_pc = self._get_pc(line, llvm=True)
+          if flist:
+            flist[-1].end_pc = self._get_pc(line, llvm=True)
         else:
           in_func.end_pc = self._get_pc(line, llvm=True)
           flist.append(in_func)
           in_func = None
       # lock rel
-      elif "rel" in line and "rel." not in line:
+      elif self._is_llvm_insn_line(line) and re.search(r"\brel\b", line) and "rel." not in line:
         # Account for text outside function
         if not in_func:
           continue
