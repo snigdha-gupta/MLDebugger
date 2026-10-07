@@ -1,0 +1,31 @@
+name: Mirror main to MLDebug
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mirror-mldebug-main
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: [ vdi ]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Push main to enterprise
+        env:
+          ENTERPRISE_TOKEN: ${{ secrets.MLDEBUG_ENTERPRISE_TOKEN }}
+        run: |
+          auth=$(printf 'x-access-token:%s' "$ENTERPRISE_TOKEN" | base64 -w0)
+          git -c "http.extraHeader=AUTHORIZATION: basic ${auth}" \
+            push https://gitenterprise.xilinx.com/snigupta/MLDebug.git \
+            HEAD:refs/heads/main
