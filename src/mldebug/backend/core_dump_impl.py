@@ -95,10 +95,15 @@ class CoreDumpFallbackReader:
       - uint8_t memTileRows: Number of memory tile rows (1 byte)
       - uint8_t totalNumRows: Total number of rows (1 byte)
       - uint8_t totalNumCols: Total number of columns (1 byte)
+      - version >= 2, at offset 18: char elfUuid[40], char kernelName[64]
 
     Returns the matching device name from DEVICE_CONFIGS, or None if the file
     is missing/unreadable, lacks the "NPU" magic, or has an unknown hwGen.
     """
+    elf_uuid_bytes = 40
+    kernel_name_bytes = 64
+    elf_uuid = ""
+    kernel_name = ""
     if not filename or not Path(filename).exists():
       return None
     try:
@@ -109,6 +114,18 @@ class CoreDumpFallbackReader:
         header = f.read(14)
         if len(header) != 14:
           return None
+        # Version is the first uint32 of the 14-byte block. Identity follows
+        # the geometry bytes and is skipped when the file is version 1.
+        if struct.unpack("<I", header[:4])[0] >= 2:
+          identity = f.read(elf_uuid_bytes + kernel_name_bytes)
+          elf_uuid = (
+            identity[:elf_uuid_bytes].split(b"\x00", 1)[0].decode("ascii", errors="replace")
+          )
+          kernel_name = (
+            identity[elf_uuid_bytes : elf_uuid_bytes + kernel_name_bytes]
+            .split(b"\x00", 1)[0]
+            .decode("ascii", errors="replace")
+          )
     except OSError:
       return None
 
@@ -124,6 +141,9 @@ class CoreDumpFallbackReader:
     print("[INFO] Core dump header:")
     print(f"  Magic: {magic.decode('ascii', errors='ignore').rstrip(chr(0))}")
     print(f"  Version: {version_num}")
+    if version_num >= 2:
+      print(f"  ELF UUID: {elf_uuid}")
+      print(f"  Kernel name: {kernel_name}")
     print(f"  Header size: {header_size} bytes")
     print(f"  Core row start: {core_row_start}")
     print(f"  Mem row start: {mem_row_start}")
